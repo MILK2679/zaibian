@@ -1,0 +1,49 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Strip local proxy from gradle.properties
+        run: |
+          sed -i '/systemProp\.http\.proxyHost/d'  gradle.properties || true
+          sed -i '/systemProp\.http\.proxyPort/d'  gradle.properties || true
+          sed -i '/systemProp\.https\.proxyHost/d' gradle.properties || true
+          sed -i '/systemProp\.https\.proxyPort/d' gradle.properties || true
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build with Gradle
+        run: ./gradlew build --no-daemon --stacktrace
+
+      - name: Upload jar artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cataclysm-dimension-jar
+          path: build/libs/*.jar
+          if-no-files-found: error
+
+      - name: Attach jar to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/libs/*.jar
